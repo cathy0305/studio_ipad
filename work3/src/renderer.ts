@@ -44,6 +44,14 @@ export class Renderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
+    // 전체 텍스트 화면을 180° 회전해서 그린다.
+    // 사용자가 아이패드를 뒤집어야 글이 똑바로 읽힌다.
+    // (물리 시뮬레이션은 캔버스 native 좌표계 그대로)
+    ctx.save()
+    ctx.translate(this.width / 2, this.height / 2)
+    ctx.rotate(Math.PI)
+    ctx.translate(-this.width / 2, -this.height / 2)
+
     for (const p of particles) {
       const opacity = p.settled ? 0.4 : 1.0
       if (p.freed) {
@@ -59,5 +67,6 @@ export class Renderer {
       }
     }
     ctx.globalAlpha = 1.0
+    ctx.restore()
   }
 }

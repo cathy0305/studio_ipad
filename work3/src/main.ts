@@ -5,10 +5,11 @@ import { step, DEFAULT_PHYSICS, type Vec2 } from './physics.ts'
 import { Renderer } from './renderer.ts'
 
 // === 설정 ===
-const TEXT = '이 글자들은 지금 당신이 들고 있는 힘으로 여기 있습니다.'
+const TEXT =
+  "Turn this iPad upside down to read me. But the moment you try, I'll move with every motion you make."
 const FONT_FAMILY = '"Pretendard Variable", -apple-system, system-ui, sans-serif'
-const FONT_SIZE = 28
-const LINE_HEIGHT = FONT_SIZE * 1.85
+const FONT_SIZE = 26
+const LINE_HEIGHT = FONT_SIZE * 1.7
 const TEXT_COLOR = '#1A1A1A'
 const BG_COLOR = '#FAFAFA'
 // 중력 변환 — sin(angle) * GRAVITY_PX = 가속도(px/s²). 90° 기울임에서 GRAVITY_PX.
@@ -82,9 +83,11 @@ function onOrientation(event: DeviceOrientationEvent): void {
   }
   const beta = (event.beta - baseBeta) * Math.PI / 180
   const gamma = (event.gamma - baseGamma) * Math.PI / 180
-  // sin(angle) → 0..1 (90도에서 1)
-  gravity.x = Math.sin(gamma) * GRAVITY_PX
-  gravity.y = Math.sin(beta) * GRAVITY_PX
+  // 텍스트는 캔버스에서 180° 회전된 채 렌더링된다 (사용자가 아이패드를
+  // 뒤집어 들었을 때 글이 똑바로 읽히도록). 따라서 가속도 부호도 뒤집어
+  // 사용자 시점의 "기울인 방향"과 글자가 흐르는 방향을 일치시킨다.
+  gravity.x = -Math.sin(gamma) * GRAVITY_PX
+  gravity.y = -Math.sin(beta) * GRAVITY_PX
 }
 
 // === 데스크탑 디버그: 마우스 위치로 중력 시뮬 ===
@@ -93,11 +96,12 @@ function setupMouseGravity(): void {
     if (!DEBUG && started) return // 디버그 모드 또는 자이로 안 붙은 상태에서만
     const cx = window.innerWidth / 2
     const cy = window.innerHeight / 2
-    // 중심 → 마우스 방향으로 중력
+    // 마우스 위치 → 중력 방향. 화면이 180° 회전 렌더링되므로 부호를 뒤집어
+    // 사용자가 마우스를 움직인 방향으로 글자가 흐르도록.
     const dx = (e.clientX - cx) / cx
     const dy = (e.clientY - cy) / cy
-    gravity.x = Math.max(-1, Math.min(1, dx)) * GRAVITY_PX
-    gravity.y = Math.max(-1, Math.min(1, dy)) * GRAVITY_PX
+    gravity.x = -Math.max(-1, Math.min(1, dx)) * GRAVITY_PX
+    gravity.y = -Math.max(-1, Math.min(1, dy)) * GRAVITY_PX
   })
 }
 
