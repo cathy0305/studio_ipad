@@ -1,6 +1,4 @@
 export const CHAR_SIZE = 22;
-
-// IBM Plex Mono 셀 비율. 0.6 이면 좌우 거의 붙고, 1.0 이면 줄간격이 글자 높이와 같음.
 export const CHAR_WIDTH_RATIO = 0.6;
 export const LINE_HEIGHT_RATIO = 1.0;
 
@@ -23,69 +21,80 @@ export const PHYSICS = {
   BREATH_FREQ: 0.002,
 };
 
+// 걷기 사이클 — STRIDE × CADENCE × SPEED 가 서로 어울려야 발이 미끄러지지 않는다.
+// 한 사이클 (= 두 걸음) ≈ 1047ms, 본체가 사이클당 4*STRIDE char unit ≈ 5.6 char ≈ 74px 이동.
+// 60fps 기준 SPEED ≈ 4*STRIDE / cycleMs * frameMs * pxPerChar ≈ 1.2 px/frame.
 export const WALK = {
-  SPEED: 1.4,        // px/frame at 60fps ≈ 84 px/s
-  MARGIN: 160,       // off-screen padding before wrapping
-  CADENCE: 0.009,    // rad/ms — full step pair ≈ 700ms
-  BODY_BOB: 1.2,     // px vertical body bob
-  LEG_LIFT: 2.4,     // px max leg lift
+  SPEED:    1.2,    // px/frame at 60fps
+  MARGIN:   180,    // off-screen padding before wrapping
+  CADENCE:  0.006,  // rad/ms — 한 걸음 쌍 ≈ 1047ms
+  STRIDE:   1.4,    // 발이 hip 기준 앞뒤로 ±STRIDE char unit 만큼 움직임
+  LIFT:     1.1,    // swing 정점에서 발이 들리는 높이 (char unit)
+  BODY_BOB: 0.35,   // 몸통 상하 진동 진폭 (char unit)
 };
 
-// 문장은 부족하면 반복해서 채운다. 공백은 시각 텍스처 위해 제거.
+// 골격
+export const SKELETON = {
+  HIP_L_RX:  -1.5,  // 왼쪽 고관절 x
+  HIP_R_RX:   1.5,  // 오른쪽 고관절 x
+  HIP_RY:    -0.3,  // 고관절 y (몸통 마지막 행 -1 아래에 살짝 붙음)
+  THIGH_LEN:  3.2,
+  CALF_LEN:   3.0,
+  FOOT_FORWARD: 0.7, // 발이 발목 기준 앞쪽으로 뻗는 거리
+};
+
+// 몸통 (강체). 폭 -3..3 안에서 모양 잡음. 살짝 호리한 sillhouette.
+export const BODY_GRID = [
+  { ry: -10, rxs: [-1, 0, 1] },                 // 머리 위
+  { ry:  -9, rxs: [-2, -1, 0, 1, 2] },          // 머리
+  { ry:  -8, rxs: [-2, -1, 0, 1, 2] },          // 얼굴
+  { ry:  -7, rxs: [-1, 0, 1] },                 // 목 (좁게)
+  { ry:  -6, rxs: [-3, -2, -1, 0, 1, 2, 3] },   // 어깨 (제일 넓게)
+  { ry:  -5, rxs: [-3, -2, -1, 0, 1, 2, 3] },   // 상체
+  { ry:  -4, rxs: [-2, -1, 0, 1, 2] },          // 가슴 안쪽
+  { ry:  -3, rxs: [-2, -1, 0, 1, 2] },          // 허리 (좁게)
+  { ry:  -2, rxs: [-3, -2, -1, 0, 1, 2, 3] },   // 골반 위
+  { ry:  -1, rxs: [-3, -2, -1, 0, 1, 2, 3] },   // 골반
+];
+
+// 다리 세그먼트 — 매 프레임 IK 로 위치 계산.
+export const LEG_SEGMENTS = [
+  { id: 'thigh_l', count: 3 },
+  { id: 'calf_l',  count: 3 },
+  { id: 'foot_l',  count: 2 },
+  { id: 'thigh_r', count: 3 },
+  { id: 'calf_r',  count: 3 },
+  { id: 'foot_r',  count: 2 },
+];
+
 const SENTENCE = "Hold the iPad level to keep the walker safe. But what if you didn't. ";
 const TEXT_LOOP = SENTENCE.replace(/\s+/g, '');
 
-// 사람 형상: 각 행은 ry (위→아래 -ry 만큼 위쪽) 와 그 행에 채울 rx 셀 목록.
-// 폭은 보통 4~7 셀, 다리부터는 좌/우로 분리.
-const FIGURE_ROWS = [
-  // 머리
-  { ry: -11, rxs: [-1, 0, 1],                  part: 'head' },
-  { ry: -10, rxs: [-2, -1, 0, 1, 2],           part: 'head' },
-  { ry:  -9, rxs: [-2, -1, 0, 1, 2],           part: 'head' },
-  // 목
-  { ry:  -8, rxs: [-1, 0, 1],                  part: 'neck' },
-  // 어깨
-  { ry:  -7, rxs: [-3, -2, -1, 0, 1, 2, 3],    part: 'shoulder' },
-  // 가슴
-  { ry:  -6, rxs: [-3, -2, -1, 0, 1, 2, 3],    part: 'torso' },
-  { ry:  -5, rxs: [-3, -2, -1, 0, 1, 2, 3],    part: 'torso' },
-  { ry:  -4, rxs: [-3, -2, -1, 0, 1, 2, 3],    part: 'torso' },
-  // 허리
-  { ry:  -3, rxs: [-3, -2, -1, 0, 1, 2, 3],    part: 'waist' },
-  { ry:  -2, rxs: [-3, -2, -1, 0, 1, 2, 3],    part: 'waist' },
-  // 골반
-  { ry:  -1, rxs: [-3, -2, -1, 0, 1, 2, 3],    part: 'hip' },
-  // 허벅지 (분리 시작)
-  { ry:   0, rxs: [-3, -2, 1, 2],              part: 'leg' },
-  { ry:   1, rxs: [-3, -2, 1, 2],              part: 'leg' },
-  { ry:   2, rxs: [-3, -2, 1, 2],              part: 'leg' },
-  // 종아리
-  { ry:   3, rxs: [-3, -2, 1, 2],              part: 'leg' },
-  { ry:   4, rxs: [-3, -2, 1, 2],              part: 'leg' },
-  { ry:   5, rxs: [-3, -2, 1, 2],              part: 'leg' },
-  // 발
-  { ry:   6, rxs: [-3, -2, 1, 2],              part: 'foot' },
-];
-
-function buildLayout() {
+function buildBodyChars() {
   const out = [];
   let i = 0;
-  for (const row of FIGURE_ROWS) {
+  for (const row of BODY_GRID) {
     for (const rx of row.rxs) {
-      let part = row.part;
-      if (part === 'leg' || part === 'foot') {
-        part += rx < 0 ? '_l' : '_r';
-      }
-      out.push({
-        char: TEXT_LOOP[i % TEXT_LOOP.length],
-        rx,
-        ry: row.ry,
-        part,
-      });
+      out.push({ char: TEXT_LOOP[i % TEXT_LOOP.length], rx, ry: row.ry });
+      i++;
+    }
+  }
+  return { chars: out, nextIndex: i };
+}
+
+function buildLegChars(startIndex) {
+  const out = {};
+  let i = startIndex;
+  for (const seg of LEG_SEGMENTS) {
+    out[seg.id] = [];
+    for (let c = 0; c < seg.count; c++) {
+      out[seg.id].push(TEXT_LOOP[i % TEXT_LOOP.length]);
       i++;
     }
   }
   return out;
 }
 
-export const WALKER_LAYOUT = buildLayout();
+const _body = buildBodyChars();
+export const BODY_CHARS = _body.chars;
+export const LEG_CHARS = buildLegChars(_body.nextIndex);
