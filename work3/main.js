@@ -178,6 +178,15 @@ function buildFigure() {
   gBob.appendChild(makeHead());
   gBob.appendChild(makeArm('a'));
   gBob.appendChild(makeLeg('a'));
+
+  // Speech bubble: above head, moves with figure (inside gFig, not gBob)
+  const aboveHead = G.HEAD_CY - G.HEAD_RY - 14;
+  speechEl = svgEl('text', {
+    x: G.HEAD_CX, y: aboveHead,
+    'text-anchor': 'middle',
+    'font-size': 13,
+    opacity: 0,
+  }, gFig);
 }
 
 // ── walk math ─────────────────────────────────────────────────
@@ -209,6 +218,98 @@ function updateJoints(phase) {
   gBob.setAttribute('transform', `translate(0,${(-bob).toFixed(2)})`);
 }
 
+// ── speech system ─────────────────────────────────────────────
+const LINES = {
+  WALKING:  ['La la la~', 'Nice day', 'Just walking', 'Hmm hmm~', 'La di da~'],
+  WOBBLING: ['Whoa!', 'Hey hey!', 'Wait!', 'Easy!', 'Hold on!'],
+  FALLING:  ['Ouch', 'Owww', 'Why?', 'Come on...', 'Oof'],
+  RISING:   ['Okay, again', 'Try again', 'Here we go', 'One more time'],
+  STABLE:   ['Steady hands!', 'Wow, calm', 'So smooth', 'Nice', 'Perfect~'],
+  ASIDE:    ['You okay?', 'Are you nervous?', 'Coffee?'],
+};
+
+const FADE_MS = 350;
+const SHOW_MS = 2000;
+
+let figState   = 'WALKING';
+let figStateMs = 0;
+const bubble   = { text: '', alpha: 0, phase: 'hidden', showTimer: 0 };
+let nextSpeechMs = 3000 + Math.random() * 2000;
+let asideMs      = 30000 + Math.random() * 20000;
+let speechEl     = null;   // SVG <text> element for speech
+
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function showBubble(text) {
+  bubble.text      = text;
+  bubble.alpha     = 0;
+  bubble.phase     = 'in';
+  bubble.showTimer = SHOW_MS;
+  if (speechEl) speechEl.textContent = `"${text}"`;
+}
+
+function tickBubble(dt) {
+  if (bubble.phase === 'in') {
+    bubble.alpha = Math.min(1, bubble.alpha + dt / FADE_MS);
+    if (bubble.alpha >= 1) bubble.phase = 'show';
+  } else if (bubble.phase === 'show') {
+    bubble.showTimer -= dt;
+    if (bubble.showTimer <= 0) bubble.phase = 'out';
+  } else if (bubble.phase === 'out') {
+    bubble.alpha = Math.max(0, bubble.alpha - dt / FADE_MS);
+    if (bubble.alpha <= 0) { bubble.phase = 'hidden'; bubble.text = ''; }
+  }
+  if (speechEl) speechEl.setAttribute('opacity', bubble.alpha.toFixed(3));
+}
+
+function rawState(tilt) {
+  if (!hasOrientationData) return 'WALKING';
+  if (tilt >= THRESHOLDS.FALLING)  return 'FALLING';
+  if (tilt >= THRESHOLDS.TILTING)  return 'WOBBLING';
+  if (tilt < 3)                    return 'STABLE';
+  return 'WALKING';
+}
+
+function tickSpeech(dt) {
+  const tilt = Math.sqrt(currentRoll ** 2 + currentPitch ** 2);
+  const raw  = rawState(tilt);
+
+  // State transitions
+  if (figState === 'FALLING' && raw !== 'FALLING') {
+    figState = 'RISING'; figStateMs = 0;
+    showBubble(pickRandom(LINES.RISING));
+    nextSpeechMs = 5000;
+  } else if (figState === 'RISING') {
+    figStateMs += dt;
+    if (figStateMs > 1500) { figState = raw; figStateMs = 0; }
+  } else if (raw !== figState) {
+    figState = raw; figStateMs = 0;
+    showBubble(pickRandom(LINES[figState]));
+    nextSpeechMs = 4000 + Math.random() * 3000;
+  } else {
+    figStateMs += dt;
+  }
+
+  tickBubble(dt);
+
+  // Periodic idle speech
+  if (bubble.phase === 'hidden') {
+    nextSpeechMs -= dt;
+    if (nextSpeechMs <= 0 && figState !== 'FALLING') {
+      showBubble(pickRandom(LINES[figState] ?? LINES.WALKING));
+      nextSpeechMs = 4000 + Math.random() * 4000;
+    }
+  }
+
+  // Occasional aside
+  asideMs -= dt;
+  if (asideMs <= 0) {
+    if (figState === 'WALKING' && bubble.phase === 'hidden')
+      showBubble(pickRandom(LINES.ASIDE));
+    asideMs = 30000 + Math.random() * 20000;
+  }
+}
+
 // ── main loop ─────────────────────────────────────────────────
 let walkerX   = null;
 let walkPhase = 0;
@@ -227,6 +328,7 @@ function loop(now) {
   gFig.setAttribute('transform', `translate(${walkerX.toFixed(1)},${groundY.toFixed(1)})`);
 
   updateJoints(walkPhase);
+  tickSpeech(dt);
 
   requestAnimationFrame(loop);
 }
