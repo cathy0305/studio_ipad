@@ -32,6 +32,17 @@ html, body {
   fill: white;
 }
 
+.focal-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: focal-pulse 2.2s ease-out infinite;
+}
+
+@keyframes focal-pulse {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+
 #intro {
   position: fixed;
   inset: 0;
