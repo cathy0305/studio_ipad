@@ -14,9 +14,28 @@
 </head>
 <body>
   <svg id="stage"></svg>
+
   <div id="intro">
     <p>Tap to begin</p>
   </div>
+
+  <!-- Round-end overlay -->
+  <div id="overlay">
+    <div class="overlay-inner">
+      <p class="overlay-title">You walked them safely.</p>
+      <p class="overlay-sub">Your hand drew this:</p>
+      <svg id="trailSvg" viewBox="0 0 300 90"></svg>
+      <div class="overlay-meta">
+        <span class="legend"><span class="dot solid"></span>roll</span>
+        <span class="legend"><span class="dot dashed"></span>pitch</span>
+      </div>
+      <button id="restartBtn" class="btn primary">Walk again</button>
+    </div>
+  </div>
+
+  <!-- Persistent stop button (top-right) -->
+  <button id="stopBtn" class="stop-btn" aria-label="End session">End</button>
+
   <script type="module" src="./main.js"></script>
 </body>
 </html>
